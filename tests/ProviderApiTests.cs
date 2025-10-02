@@ -44,8 +44,8 @@ public class ProviderApiTests : IDisposable
         _outputHelper = output;
         
         // Configure provider and pact service URIs
-        _providerUri = "http://localhost:9000";
-        _pactServiceUri = "http://localhost:9001";
+        _providerUri = "http://localhost:9900";
+        _pactServiceUri = "http://localhost:9901";
 
         // Create and start a test web server that will handle provider state setup
         _webHost = WebHost.CreateDefaultBuilder()
