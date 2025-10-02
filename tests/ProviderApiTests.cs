@@ -14,6 +14,7 @@ using Xunit.Abstractions;
 // It verifies that the provider (this service) meets the contract expected by its consumers.
 // The tests use Pact to validate the API against the consumer contracts stored in the Pact Broker.
 
+
 namespace tests;
 
 /// <summary>
