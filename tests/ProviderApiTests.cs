@@ -10,21 +10,44 @@ using PactNet;
 using Xunit;
 using Xunit.Abstractions;
 
+// This file contains the provider-side contract tests for the API.
+// It verifies that the provider (this service) meets the contract expected by its consumers.
+// The tests use Pact to validate the API against the consumer contracts stored in the Pact Broker.
+
 namespace tests;
 
+/// <summary>
+/// Test class that verifies the provider's API against consumer contracts.
+/// Inherits from IDisposable to properly clean up resources.
+/// </summary>
 public class ProviderApiTests : IDisposable
 {
+    // Base URI for the provider API being tested
     private string _providerUri { get; }
+    
+    // URI for the Pact mock service that will be started during tests
     private string _pactServiceUri { get; }
+    
+    // Web host for the test server
     private IWebHost _webHost { get; }
+    
+    // Helper for xUnit test output
     private ITestOutputHelper _outputHelper { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ProviderApiTests"/> class.
+    /// Sets up the test environment including the test web server.
+    /// </summary>
+    /// <param name="output">xUnit test output helper for logging</param>
     public ProviderApiTests(ITestOutputHelper output)
     {
         _outputHelper = output;
-        _providerUri = "http://localhost:9000";
-        _pactServiceUri = "http://localhost:9001";
+        
+        // Configure provider and pact service URIs
+        _providerUri = "http://localhost:9900";
+        _pactServiceUri = "http://localhost:9901";
 
+        // Create and start a test web server that will handle provider state setup
         _webHost = WebHost.CreateDefaultBuilder()
             .UseUrls(_pactServiceUri)
             .UseStartup<TestStartup>()
@@ -33,23 +56,29 @@ public class ProviderApiTests : IDisposable
         _webHost.Start();
     }
 
+    /// <summary>
+    /// Main test method that verifies the provider against all consumer pacts.
+    /// This test will be run by xUnit and will verify the provider's compliance
+    /// with all consumer contracts from the configured source (file or broker).
+    /// </summary>
     [Fact]
     public void EnsureProviderApiHonoursPactWithConsumer()
     {
-        // Arrange
+        // Arrange - Configure the Pact verifier
         var config = new PactVerifierConfig
         {
 
-            // NOTE: We default to using a ConsoleOutput,
-            // however xUnit 2 does not capture the console output,
-            // so a custom outputter is required.
+            // Configure outputters for test results
+            // xUnit 2 doesn't capture console output by default, so we use XunitOutput
+            // to ensure test output appears in the test results
             Outputters = new List<IOutput>
                             {
-                                new XunitOutput(_outputHelper),
-                                new ConsoleOutput()
+                                new XunitOutput(_outputHelper),  // Send output to xUnit test results
+                                new ConsoleOutput()              // Also output to console for local debugging
                             },
 
-            // Output verbose verification logs to the test output
+            // Set log level to Debug for detailed verification output
+            // This helps with troubleshooting test failures
             LogLevel = PactLogLevel.Debug,
         };
 
@@ -65,8 +94,9 @@ public class ProviderApiTests : IDisposable
 
 
         if (pactFile != "" && pactFile != null)
-        // Verify a local file, provided by PACT_FILE, verification results are never published
-        // This step does not require a Pact Broker
+        // Verify against a local pact file (for development/testing without a broker)
+        // This mode is used when PACT_FILE environment variable is set
+        // Verification results are not published back to a broker in this mode
         {
 
             pactVerifier.WithHttpEndpoint(new Uri(_providerUri))
@@ -75,8 +105,9 @@ public class ProviderApiTests : IDisposable
             .Verify();
         }
         else if (pactUrl != "" && pactUrl != null)
-        // Verify a remote file fetched from a pact broker, provided by PACT_URL, verification results may be published
-        // This step requires a Pact Broker
+        // Verify against a specific pact file from a URL (e.g., from a broker or direct URL)
+        // This mode is used when PACT_URL environment variable is set
+        // Verification results may be published back to the broker if configured
         {
             pactVerifier.WithHttpEndpoint(new Uri(_providerUri))
             .WithUriSource(new Uri(pactUrl), options =>
@@ -100,8 +131,10 @@ public class ProviderApiTests : IDisposable
         }
         else
         {
-            // Verify remote pacts, provided by querying the Pact Broker via consumer version selectors, verification results may be published
-            // This step requires a Pact Broker
+            // Verify against all relevant pacts from the Pact Broker
+            // This is the main production mode where the provider verifies against
+            // all consumer pacts that match the configured selectors
+            // Verification results are published back to the broker if configured
             if (Environment.GetEnvironmentVariable("PACT_BROKER_BASE_URL") == null){
                 throw new InvalidOperationException("PACT_BROKER_BASE_URL environment variable is not set.");
             }
@@ -144,7 +177,8 @@ public class ProviderApiTests : IDisposable
 
     #region IDisposable Support
 
-    private bool _disposed = false; // To detect redundant calls
+    // Track whether Dispose has been called
+    private bool _disposed = false;
 
     protected virtual void Dispose(bool disposing)
     {
@@ -161,7 +195,9 @@ public class ProviderApiTests : IDisposable
         _disposed = true;
     }
 
-    // This code added to correctly implement the disposable pattern.
+    /// <summary>
+    /// Public implementation of Dispose pattern callable by consumers.
+    /// </summary>
     public void Dispose()
     {
         // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
